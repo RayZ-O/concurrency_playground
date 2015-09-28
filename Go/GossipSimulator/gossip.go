@@ -2,11 +2,13 @@ package main
 
 import (
 "fmt"
+"math"
 "math/rand"
 "time"
+"os"
+"strconv"
 )
 
-const numOfPeers = 4000 // greater than 1
 const threshold = 10
 
 type Message struct {
@@ -57,7 +59,7 @@ func (p Peer) Propagate(convergent chan bool, msg Message) {
             p.count++
             p.ProcessMessage(m)
             if p.count == threshold {
-                fmt.Printf("[CONVERGE] Peer %d converged\n", p.id)
+                // fmt.Printf("[CONVERGE] Peer %d converged\n", p.id)
                 convergent <- true
             }
             if p.count >= threshold {
@@ -72,7 +74,7 @@ func (p Peer) Propagate(convergent chan bool, msg Message) {
             }
             if len(p.neighboor) == 0 && p.count < threshold {
                 p.count = threshold + 1
-                fmt.Printf("[CONVERGE] Peer %d is isolated\n", p.id)
+                // fmt.Printf("[CONVERGE] Peer %d is isolated\n", p.id)
                 convergent <- true
             }
         }
@@ -98,9 +100,9 @@ func (p Peer) NotifyTerminate(msg Message) {
     // fmt.Printf("Peer %d notify terminate to %d\n", p.id, msg.sender.id)
 }
 
-func BuildFullNetwork(peers []Peer) {
-    for i :=1; i < numOfPeers + 1; i++ {
-        for j :=1; j < numOfPeers + 1; j++ {
+func BuildFullNetwork(peers []Peer, numOfPeers int) {
+    for i := 0; i < numOfPeers; i++ {
+        for j := 0; j < numOfPeers; j++ {
             if j != i {
                 peers[i].neighboor = append(peers[i].neighboor, peers[j])
             }
@@ -108,35 +110,147 @@ func BuildFullNetwork(peers []Peer) {
     }
 }
 
-func BuildLineNetwork(peers []Peer) {
-    for i :=2; i < numOfPeers; i++ {
+func BuildLineNetwork(peers []Peer, numOfPeers int) {
+    for i :=1; i < numOfPeers - 1; i++ {
         peers[i].neighboor = append(peers[i].neighboor, peers[i - 1])
         peers[i].neighboor = append(peers[i].neighboor, peers[i + 1])
     }
-    peers[1].neighboor = append(peers[1].neighboor, peers[2])
-    peers[numOfPeers].neighboor = append(peers[numOfPeers].neighboor, peers[numOfPeers - 1])
+    peers[0].neighboor = append(peers[0].neighboor, peers[1])
+    peers[numOfPeers - 1].neighboor = append(peers[numOfPeers - 1].neighboor, peers[numOfPeers - 2])
+}
+
+func Map2DTo1D(x int, y int, size int) int {
+    return x + y * size
+}
+
+func Build2DGrid(peers []Peer, numOfPeers int) {
+    size := int(math.Sqrt(float64(numOfPeers)))
+    for i := 0; i < size; i++ {
+        for j := 0; j < size; j++ {
+            pos := Map2DTo1D(j, i, size)
+            if j > 0 {
+                peers[pos].neighboor = append(peers[pos].neighboor, peers[Map2DTo1D(j - 1, i, size)])
+            }
+            if j < size - 1 {
+                peers[pos].neighboor = append(peers[pos].neighboor, peers[Map2DTo1D(j + 1, i, size)])
+            }
+            if i > 0 {
+                peers[pos].neighboor = append(peers[pos].neighboor, peers[Map2DTo1D(j, i - 1, size)])
+            }
+            if i < size - 1 {
+                peers[pos].neighboor = append(peers[pos].neighboor, peers[Map2DTo1D(j, i + 1, size)])
+            }
+        }
+    }
+}
+
+func IdInNeighbour(id int, neighboor []Peer) bool {
+    for _, n := range neighboor {
+        if id == n.id {
+            return true
+        }
+    }
+    return false
+}
+
+func Map3DTo1D(x int, y int, z int, size int) int {
+    return x + y * size + z * size * size
+}
+
+func Build3DGrid(peers []Peer, numOfPeers int) {
+    size := int(math.Pow(float64(numOfPeers), 1.0/3))
+    for i := 0; i < size; i++ {
+        for j := 0; j < size; j++ {
+            for k := 0; k < size; k++ {
+                pos := Map3DTo1D(k, j, i, size)
+                if k > 0 {
+                    peers[pos].neighboor = append(peers[pos].neighboor, peers[Map3DTo1D(k - 1, j, i, size)])
+                }
+                if k < size - 1 {
+                    peers[pos].neighboor =  append(peers[pos].neighboor, peers[Map3DTo1D(k + 1, j, i, size)])
+                }
+                if j > 0 {
+                    peers[pos].neighboor =  append(peers[pos].neighboor, peers[Map3DTo1D(k, j - 1, i, size)])
+                }
+                if j < size - 1 {
+                     peers[pos].neighboor =  append(peers[pos].neighboor, peers[Map3DTo1D(k, j + 1, i, size)])
+                }
+                if i > 0 {
+                    peers[pos].neighboor =  append(peers[pos].neighboor, peers[Map3DTo1D(k, j, i - 1, size)])
+                }
+                if i < size - 1 {
+                    peers[pos].neighboor =  append(peers[pos].neighboor, peers[Map3DTo1D(k, j, i + 1, size)])
+                }
+            }
+        }
+    }
+}
+
+func BuildImpGrid(peers []Peer, numOfPeers int, buildGrid func(peers []Peer, numOfPeers int)) {
+    buildGrid(peers, numOfPeers)
+    for i := 0; i < numOfPeers; i++ {
+        for {
+            random := rand.Intn(numOfPeers)
+            if (IdInNeighbour(random, peers[i].neighboor)) {
+                continue
+            } else {
+                peers[i].neighboor = append(peers[i].neighboor, peers[random])
+                break
+            }
+        }
+    }
+}
+
+func BuildNetwork(peers []Peer, topology string, numOfPeers int) {
+    switch topology {
+    case "full":
+        BuildFullNetwork(peers, numOfPeers)
+    case "line":
+        BuildLineNetwork(peers, numOfPeers)
+    case "2D":
+        Build2DGrid(peers, numOfPeers)
+    case "imp2D":
+        BuildImpGrid(peers, numOfPeers, Build2DGrid)
+    case "3D":
+        Build3DGrid(peers, numOfPeers)
+    case "imp3D":
+        BuildImpGrid(peers, numOfPeers, Build3DGrid)
+    default:
+        panic("Topology is not implemented")
+    }
 }
 
 func main() {
+    if len(os.Args) != 3 {
+        fmt.Println("Usage: go run gossip.go [num of peers][topology]")
+        return
+    }
+    // get number of peers and topology from input
+    numOfPeers, err := strconv.Atoi(os.Args[1])
+    if err != nil  { //|| num0s < 1 || num0s > 32
+        fmt.Println("Usage: go run gossip.go [num of peers][topology]")
+        return
+    }
+    topology := os.Args[2]
     // create peers
-    var peers [numOfPeers + 1]Peer
-    for i := 0; i < numOfPeers + 1; i++ {
+    peers := make([]Peer, numOfPeers)
+    for i := 0; i < numOfPeers; i++ {
         peers[i] = Peer{id:i, count:0, msgQueue:make(chan Message)}
     }
     // build topology
-    BuildFullNetwork(peers[:])
-    // BuildLineNetwork(peers[:])
-    for i := 1; i < numOfPeers + 1; i++ {
-        peers[0].neighboor = append(peers[0].neighboor, peers[i])
-    }
+    BuildNetwork(peers[:], topology, numOfPeers)
 
     convergent := make(chan bool)
     rand.Seed(time.Now().UTC().UnixNano())
-    for i := 1; i < numOfPeers + 1; i++ {
+    for i := 0; i < numOfPeers; i++ {
         go peers[i].Start(convergent)
     }
-    peers[0].SendMessage("Hello, I am main process")
+    // start gossip
+    start := time.Now()
+    peers[0].msgQueue <- Message{0, "Hello, I am main process", &peers[0]}
     for i := 0; i < numOfPeers; i++ {
         <-convergent
     }
+    elapsed := time.Since(start)
+    fmt.Printf("[END] %v peers, %v network spent %v\n", numOfPeers, topology, elapsed)
 }
