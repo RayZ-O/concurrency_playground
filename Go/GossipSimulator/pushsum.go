@@ -13,7 +13,8 @@ const threshold = 10
 
 type Message struct {
     msgType int
-    content string
+    s float64
+    w float64
     sender *Peer
 }
 
@@ -21,31 +22,26 @@ type Peer struct {
     id int
     neighboor []Peer
     count int
-    state string
+    s float64
+    w float64
     msgQueue chan Message
 }
 
-func (p Peer) Start(convergent chan bool) {
+func (p Peer) Start(convergent chan float64) {
     msg := <-p.msgQueue
     // fmt.Printf("[KNOWS] Peer %d knows the roumor\n", p.id)
-    p.count++
-    p.state = msg.content
     p.ProcessMessage(msg)
     p.Propagate(convergent, msg)
 }
 
-func (p Peer) Propagate(convergent chan bool, msg Message) {
+func (p Peer) Propagate(convergent chan float64, msg Message) {
     ticker := time.NewTicker(10 * time.Millisecond)
     cancelTick := make(chan bool)
     go func() {
         for {
             select {
             case <-ticker.C:
-                if len(p.neighboor) > 0 {
-                    p.SendMessage(p.state)
-                } else {
-                    cancelTick <- true
-                }
+                p.SendMessage()
             case <-cancelTick:
                 ticker.Stop()
                 return
@@ -55,49 +51,34 @@ func (p Peer) Propagate(convergent chan bool, msg Message) {
 
     for {
         m := <-p.msgQueue
-        if m.msgType == 0 {
-            p.count++
-            p.ProcessMessage(m)
-            if p.count == threshold {
-                // fmt.Printf("[CONVERGE] Peer %d converged\n", p.id)
-                convergent <- true
-            }
-            if p.count >= threshold {
-                p.NotifyTerminate(m)
-            }
-        } else {
-            for i, n := range p.neighboor {
-                if m.sender.id == n.id {
-                    p.neighboor = append(p.neighboor[:i], p.neighboor[i+1:]...)
-                    break
-                }
-            }
-            if len(p.neighboor) == 0 && p.count < threshold {
-                p.count = threshold + 1
-                // fmt.Printf("[CONVERGE] Peer %d is isolated\n", p.id)
-                convergent <- true
-            }
+        p.ProcessMessage(m)
+        if p.count == 3 {
+            // fmt.Printf("Peer %d converge, sum is %v\n", p.id, p.s / p.w)
+            cancelTick <- true
+            convergent <- p.s / p.w
         }
     }
-
 }
 
-func (p Peer) SendMessage(content string) {
+func (p *Peer) SendMessage() {
+    p.s /= 2.0
+    p.w /= 2.0
     i := rand.Intn(len(p.neighboor))
-    // fmt.Printf("Peer %d send to Peer %d\n" , p.id, p.neighboor[i].id)
-    p.neighboor[i].msgQueue <- Message{0, content, &p}
+    // fmt.Printf("Peer %d send to Peer %d, s: %f, w: %f\n" , p.id, p.neighboor[i].id, p.s, p.w)
+    p.neighboor[i].msgQueue <- Message{0, p.s, p.w, p}
 }
 
-func (p Peer) ProcessMessage(msg Message) {
-    // fmt.Printf("Peer %d receive %s from Peer %d\n" , p.id, msg.content, msg.sender.id)
-}
-
-func (p Peer) NotifyTerminate(msg Message) {
-    // for _, n := range p.neighboor {
-    //     n.msgQueue <- Message{2, "", &p}
-    // }
-    msg.sender.msgQueue <- Message{2, "", &p}
-    // fmt.Printf("Peer %d notify terminate to %d\n", p.id, msg.sender.id)
+func (p *Peer) ProcessMessage(msg Message) {
+    ratio := p.s / p.w
+    p.s += msg.s
+    p.w += msg.w
+    newRatio := p.s / p.w
+    if math.Abs(ratio - newRatio) < 1e-10 {
+        p.count++
+    } else {
+        p.count = 0
+    }
+    // fmt.Printf("Peer %d receive from Peer %d, sum: %f\n" , p.id, msg.sender.id, p.s / p.w)
 }
 
 func BuildFullNetwork(peers []Peer, numOfPeers int) {
@@ -124,7 +105,7 @@ func Map2DTo1D(x int, y int, size int) int {
 }
 
 func Build2DGrid(peers []Peer, numOfPeers int) {
-    size := int(math.Sqrt(float64(numOfPeers)))
+    size := int(math.Sqrt(float64(numOfPeers)) + 0.5)
     for i := 0; i < size; i++ {
         for j := 0; j < size; j++ {
             pos := Map2DTo1D(j, i, size)
@@ -191,7 +172,7 @@ func BuildImpGrid(peers []Peer, numOfPeers int, buildGrid func(peers []Peer, num
     for i := 0; i < numOfPeers; i++ {
         for {
             random := rand.Intn(numOfPeers)
-            if IdInNeighbour(random, peers[i].neighboor) || random == i  {
+            if IdInNeighbour(random, peers[i].neighboor) || random == i {
                 continue
             } else {
                 peers[i].neighboor = append(peers[i].neighboor, peers[random])
@@ -222,35 +203,38 @@ func BuildNetwork(peers []Peer, topology string, numOfPeers int) {
 
 func main() {
     if len(os.Args) != 3 {
-        fmt.Println("Usage: go run gossip.go [num of peers][topology]")
+        fmt.Println("Usage: go run pushsum.go [num of peers][topology]")
         return
     }
     // get number of peers and topology from input
     numOfPeers, err := strconv.Atoi(os.Args[1])
     if err != nil  { //|| num0s < 1 || num0s > 32
-        fmt.Println("Usage: go run gossip.go [num of peers][topology]")
+        fmt.Println("Usage: go run pushsum.go [num of peers][topology]")
         return
     }
     topology := os.Args[2]
+    if topology == "2D" || topology == "imp2D" {
+        numOfPeers = int(math.Pow(float64(int(math.Sqrt(float64(numOfPeers)) + 0.5)), 2.0))
+    } else if topology == "3D" || topology == "imp3D"{
+        numOfPeers = int(math.Pow(float64(int(math.Pow(float64(numOfPeers), 1.0/3) + 0.5)), 3.0))
+    }
     // create peers
     peers := make([]Peer, numOfPeers)
     for i := 0; i < numOfPeers; i++ {
-        peers[i] = Peer{id:i, count:0, msgQueue:make(chan Message)}
+        peers[i] = Peer{id:i, count:0, s:float64(i) + 1.0, w:0.0, msgQueue:make(chan Message)}
     }
     // build topology
     BuildNetwork(peers[:], topology, numOfPeers)
 
-    convergent := make(chan bool)
+    convergent := make(chan float64)
     rand.Seed(time.Now().UTC().UnixNano())
     for i := 0; i < numOfPeers; i++ {
         go peers[i].Start(convergent)
     }
     // start gossip
     start := time.Now()
-    peers[0].msgQueue <- Message{0, "Hello, I am main process", &peers[0]}
-    for i := 0; i < numOfPeers; i++ {
-        <-convergent
-    }
+    peers[0].msgQueue <- Message{0, 0.0, 1.0, &peers[0]}
+    fmt.Printf("Sum from 1 to %d: %f\n", numOfPeers, <-convergent)
     elapsed := time.Since(start)
     fmt.Printf("[END] %v peers, %v network spent %v\n", numOfPeers, topology, elapsed)
 }
