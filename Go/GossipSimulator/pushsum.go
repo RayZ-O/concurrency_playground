@@ -9,7 +9,7 @@ import (
 "strconv"
 )
 
-const threshold = 10
+const threshold = 3
 
 type Message struct {
     msgType int
@@ -52,7 +52,7 @@ func (p Peer) Propagate(convergent chan float64, msg Message) {
     for {
         m := <-p.msgQueue
         p.ProcessMessage(m)
-        if p.count == 3 {
+        if p.count >= threshold {
             // fmt.Printf("Peer %d converge, sum is %v\n", p.id, p.s / p.w)
             cancelTick <- true
             convergent <- p.s / p.w
@@ -89,15 +89,6 @@ func BuildFullNetwork(peers []Peer, numOfPeers int) {
             }
         }
     }
-}
-
-func BuildLineNetwork(peers []Peer, numOfPeers int) {
-    for i :=1; i < numOfPeers - 1; i++ {
-        peers[i].neighboor = append(peers[i].neighboor, peers[i - 1])
-        peers[i].neighboor = append(peers[i].neighboor, peers[i + 1])
-    }
-    peers[0].neighboor = append(peers[0].neighboor, peers[1])
-    peers[numOfPeers - 1].neighboor = append(peers[numOfPeers - 1].neighboor, peers[numOfPeers - 2])
 }
 
 func Map2DTo1D(x int, y int, size int) int {
@@ -186,8 +177,6 @@ func BuildNetwork(peers []Peer, topology string, numOfPeers int) {
     switch topology {
     case "full":
         BuildFullNetwork(peers, numOfPeers)
-    case "line":
-        BuildLineNetwork(peers, numOfPeers)
     case "2D":
         Build2DGrid(peers, numOfPeers)
     case "imp2D":
@@ -213,11 +202,11 @@ func main() {
         return
     }
     topology := os.Args[2]
-    if topology == "2D" || topology == "imp2D" {
-        numOfPeers = int(math.Pow(float64(int(math.Sqrt(float64(numOfPeers)) + 0.5)), 2.0))
-    } else if topology == "3D" || topology == "imp3D"{
-        numOfPeers = int(math.Pow(float64(int(math.Pow(float64(numOfPeers), 1.0/3) + 0.5)), 3.0))
-    }
+    // if topology == "2D" || topology == "imp2D" {
+    //     numOfPeers = int(math.Pow(float64(int(math.Sqrt(float64(numOfPeers)) + 0.5)), 2.0))
+    // } else if topology == "3D" || topology == "imp3D"{
+    //     numOfPeers = int(math.Pow(float64(int(math.Pow(float64(numOfPeers), 1.0/3) + 0.5)), 3.0))
+    // }
     // create peers
     peers := make([]Peer, numOfPeers)
     for i := 0; i < numOfPeers; i++ {
@@ -231,7 +220,7 @@ func main() {
     for i := 0; i < numOfPeers; i++ {
         go peers[i].Start(convergent)
     }
-    // start gossip
+    // start push sum
     start := time.Now()
     peers[0].msgQueue <- Message{0, 0.0, 1.0, &peers[0]}
     fmt.Printf("Sum from 1 to %d: %f\n", numOfPeers, <-convergent)
