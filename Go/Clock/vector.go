@@ -56,6 +56,7 @@ func (c Clock) SendMessage() {
 
 func (c *Clock) ProcessMessage(msg Message) {
     // fmt.Printf("[LOG] Clock %d receive message from clock %d\n", c.id, msg.sender.id)
+    c.vector[c.id]++
     updated := false
     for i, time := range msg.vector {
         if time > c.vector[i] {
