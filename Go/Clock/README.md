@@ -22,5 +22,4 @@ Press Ctrl + C to stop the program
 Input the number of clocks, all elements in the time vector of each clock are initialize to 0  
 (1) Each clock will periodically increment its own logical clock in the vector by 1   
 (2) Each clock will periodically send its entire vector to a random clock  
-(3) Upon receive, the clock increments its own logical clock in the vector by 1 and updates each element in its vector by taking   
-    max(value in its own vector, value in the vector in the message)  
+(3) Upon receive, the clock increments its own logical clock in the vector by 1 and updates each element in its vector by taking max(value in its own vector, value in the vector in the message)  
