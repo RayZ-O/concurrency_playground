@@ -1,7 +1,9 @@
 # Two phase commit simulator   
   
 ### Usage:  
+```
 go run commit.go [num of cohorts]  
+```
 Press Ctrl + C to stop the program  
   
 ### Description:  

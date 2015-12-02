@@ -1,8 +1,13 @@
 # Gossip    
   
-### Usage:   
+### Usage:  
+```  
 go run gossip.go [num of peers][topology]  
-e.g. go run gossip 100 full    
+```
+e.g. 
+```
+go run gossip 100 full    
+```
   
 ### topology:  
 full    
@@ -14,9 +19,14 @@ imp3D (num of peers must be cubic number)
   
 # Push-sum  
   
-### Usage:   
+### Usage:
+```   
 go run pushsum.go [num of peers][topology]  
-e.g. go run pushsum.go 100 full  
+```
+e.g. 
+```
+go run pushsum.go 100 full  
+```
   
 ### topology:  
 full  

@@ -1,7 +1,9 @@
 # Lamport clock  
   
 ### Usage:  
-go run lamport.go [num of clocks]  
+```
+go run lamport.go [num of clocks] 
+``` 
 Press Ctrl + C to stop the program  
   
 ### Description:  
@@ -11,7 +13,9 @@ Press Ctrl + C to stop the program
 # Vector clock  
   
 ### Usage:  
+```
 go run vector.go [num of clocks]  
+```
 Press Ctrl + C to stop the program  
   
 ### Description:  

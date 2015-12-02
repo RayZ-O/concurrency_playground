@@ -1,9 +1,13 @@
 # MapReduce simulator  
   
 ### Usage:  
+```
 go run mapper.go [input file name] | sort | go run reducer.go  
+```
 e.g.  
+```
 go run mapper.go word.txt | sort | go run reducer.go  
+```  
   
 ### Description:  
 Simple word count simulator implemented in Go  
