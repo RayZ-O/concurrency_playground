@@ -1,1 +1,2 @@
-# Simple distributed alogrithm simulators implemented in Go
+# Distributed algorithm simulators
+Simple distributed alogrithm simulators implemented in Go
